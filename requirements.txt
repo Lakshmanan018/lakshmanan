@@ -1,6 +1,6 @@
+streamlit
 tensorflow
-fastapi
-uvicorn
+numpy
 pandas
 scikit-learn
 joblib
