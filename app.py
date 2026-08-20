@@ -1,90 +1,102 @@
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+import streamlit as st
 import tensorflow as tf
-import joblib
 import numpy as np
 import pandas as pd
-import os
+from pathlib import Path
 
-# --- Configuration ---
-# Ensure Google Drive is mounted and the folder path is correct
-folder_path = "/content/drive/MyDrive/SmartEnergy" # This should match where you saved your model/scalers
-scaler_path = "/content/scaler.pkl" # This is where the overall scaler was saved
-target_scaler_inverse_path = "/content/target_scaler_for_inverse.pkl" # This is where the inverse target scaler was saved
+st.set_page_config(
+    page_title="Smart Energy Predictor",
+    page_icon="⚡",
+    layout="wide"
+)
 
-# --- Load Model and Scalers ---
-loaded_lstm_model = None
-loaded_scaler = None
-target_scaler_for_inverse = None
+BASE = Path(__file__).parent
+MODEL_PATH = BASE / "energy_lstm_model.keras"
+DATA_PATH = BASE / "processed_energy_data.csv"
 
-try:
-    # Load the saved LSTM model from Drive
-    loaded_lstm_model = tf.keras.models.load_model(os.path.join(folder_path, "energy_lstm_model.keras"))
-    # Load the feature scaler from /content
-    loaded_scaler = joblib.load(scaler_path)
-    # Load the target scaler for inverse transformation from /content
-    target_scaler_for_inverse = joblib.load(target_scaler_inverse_path)
-    print("Model and scalers loaded successfully!")
-except Exception as e:
-    print(f"Error loading model or scalers: {e}")
-    # Handle the case where loading fails, maybe disable prediction endpoint or return error
+@st.cache_resource
+def load_model():
+    return tf.keras.models.load_model(MODEL_PATH)
 
-# Define input features and n_steps (must match training)
-# Make sure these are consistent with how the model was trained
-features_for_prediction = [
-    'Temperature', 'Humidity', 'WindSpeed', 'GeneralDiffuseFlows', 'DiffuseFlows',
-    'lag_1', 'lag_6', 'lag_144', 'lag_1008', 'TotalConsumption' # TotalConsumption is the target used during scaling
-]
-lstm_n_steps = 10 # This should match the 'n_steps' used during model training
+@st.cache_data
+def load_data():
+    if DATA_PATH.exists():
+        return pd.read_csv(DATA_PATH)
+    return None
 
-# --- FastAPI App ---
-app = FastAPI(title="Smart Energy Prediction API")
+st.title("⚡ Smart Energy Consumption Predictor")
+st.caption("LSTM-based electricity consumption forecasting")
 
-# Request body for prediction
-class PredictionRequest(BaseModel):
-    sequence: list[dict] # A list of dictionaries, each dict represents an observation
+if not MODEL_PATH.exists():
+    st.error("energy_lstm_model.keras not found.")
+    st.stop()
 
-@app.get("/")
-def home():
-    return {"message": "Smart Energy Prediction API is running"}
+model = load_model()
+df = load_data()
 
-@app.get("/health")
-def health():
-    return {"status": "OK", "model_loaded": loaded_lstm_model is not None}
+col1, col2, col3 = st.columns(3)
 
-@app.post("/predict")
-def predict(request: PredictionRequest):
-    if loaded_lstm_model is None or loaded_scaler is None or target_scaler_for_inverse is None:
-        raise HTTPException(status_code=500, detail="Model or scalers not loaded. Check server logs.")
+col1.metric("Model", "LSTM")
+col2.metric("Input Shape", str(model.input_shape))
+col3.metric("Output Shape", str(model.output_shape))
 
-    try:
-        # Convert input sequence to DataFrame
-        input_df = pd.DataFrame(request.sequence)
+st.divider()
 
-        # Ensure column order matches the training data for scaling
-        # It's crucial that `features_for_prediction` includes the target column
-        # as it was part of the original `df_scaled` for `scaler`.
-        input_df = input_df[features_for_prediction]
+st.subheader("Energy Prediction")
 
-        # Scale the input sequence
-        scaled_input = loaded_scaler.transform(input_df)
+st.info(
+    "The current LSTM expects 10 time steps × 10 features. "
+    "Enter the prepared/scaled 10×10 sequence used during training."
+)
 
-        # Reshape for LSTM: (1, n_steps, n_features)
-        # The input should have 'lstm_n_steps' (10) observations, each with 'len(features_for_prediction)' (10) features.
-        if scaled_input.shape[0] != lstm_n_steps:
-             raise ValueError(f"Input sequence must contain {lstm_n_steps} observations, but got {scaled_input.shape[0]}.")
+values = st.data_editor(
+    pd.DataFrame(
+        np.zeros((10, 10)),
+        columns=[f"Feature {i+1}" for i in range(10)]
+    ),
+    use_container_width=True,
+    num_rows="fixed"
+)
 
-        prediction_input = scaled_input.reshape(1, lstm_n_steps, len(features_for_prediction))
+if st.button("🔮 Predict Energy Consumption", type="primary"):
 
-        # Make prediction
-        scaled_prediction = loaded_lstm_model.predict(prediction_input)
+    x = values.to_numpy(dtype=np.float32)
 
-        # Inverse transform the prediction
-        # The target_scaler_for_inverse expects a 2D array, e.g., [[value]]
-        predicted_total_consumption = target_scaler_for_inverse.inverse_transform(scaled_prediction)[0][0]
+    if x.shape != (10, 10):
+        st.error(f"Expected (10, 10), received {x.shape}")
+        st.stop()
 
-        return {"predicted_total_consumption": predicted_total_consumption}
+    prediction = model.predict(
+        x.reshape(1, 10, 10),
+        verbose=0
+    )
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+    result = float(prediction[0][0])
+
+    st.success("Prediction completed!")
+
+    st.metric(
+        "Predicted Consumption",
+        f"{result:.4f}"
+    )
+
+    st.warning(
+        "This is currently the model's scaled output. "
+        "The final version should apply your exact scaler and "
+        "inverse-transform the prediction."
+    )
+
+if df is not None:
+
+    st.divider()
+
+    st.subheader("Historical Energy Data")
+
+    st.write(
+        f"Rows: {len(df):,} | Columns: {len(df.columns)}"
+    )
+
+    st.dataframe(
+        df.tail(20),
+        use_container_width=True
+    )
