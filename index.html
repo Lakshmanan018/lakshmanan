@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Energy Consumption Predictor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">AI ENERGY FORECASTING</div>
+        <h1>Smart Energy Consumption Predictor</h1>
+        <p>Predict the next electricity consumption value using your trained LSTM model.</p>
+      </div>
+      <div id="apiStatus" class="status offline">API Offline</div>
+    </header>
+
+    <section class="card">
+      <div class="section-title">
+        <div>
+          <h2>Latest Observation</h2>
+          <p>Enter one observation, then use the button to copy it into all 10 LSTM time steps.</p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <label>Temperature<input id="Temperature" type="number" step="any"></label>
+        <label>Humidity<input id="Humidity" type="number" step="any"></label>
+        <label>Wind Speed<input id="WindSpeed" type="number" step="any"></label>
+        <label>General Diffuse Flows<input id="GeneralDiffuseFlows" type="number" step="any"></label>
+        <label>Diffuse Flows<input id="DiffuseFlows" type="number" step="any"></label>
+        <label>Lag 1<input id="lag_1" type="number" step="any"></label>
+        <label>Lag 6<input id="lag_6" type="number" step="any"></label>
+        <label>Lag 144<input id="lag_144" type="number" step="any"></label>
+        <label>Lag 1008<input id="lag_1008" type="number" step="any"></label>
+        <label>Total Consumption<input id="TotalConsumption" type="number" step="any"></label>
+      </div>
+
+      <div class="buttons">
+        <button id="demoBtn" class="secondary">Load Demo</button>
+        <button id="copyBtn" class="secondary">Copy to 10 Steps</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <div>
+          <h2>LSTM Input Sequence</h2>
+          <p>Exactly 10 observations × 10 features are sent to Flask.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>Temperature</th>
+              <th>Humidity</th>
+              <th>WindSpeed</th>
+              <th>GeneralDiffuseFlows</th>
+              <th>DiffuseFlows</th>
+              <th>lag_1</th>
+              <th>lag_6</th>
+              <th>lag_144</th>
+              <th>lag_1008</th>
+              <th>TotalConsumption</th>
+            </tr>
+          </thead>
+          <tbody id="sequenceBody"></tbody>
+        </table>
+      </div>
+
+      <button id="predictBtn" class="predict">Predict Energy Consumption</button>
+      <div id="message" class="message"></div>
+    </section>
+
+    <section class="results">
+      <div class="result-card">
+        <span>Predicted Consumption</span>
+        <strong id="prediction">—</strong>
+        <small id="unit">consumption units</small>
+      </div>
+      <div class="result-card">
+        <span>Model</span>
+        <strong>LSTM</strong>
+        <small>10 × 10 input</small>
+      </div>
+      <div class="result-card">
+        <span>Demand Status</span>
+        <strong id="demandStatus">Waiting</strong>
+        <small>Simple indicator</small>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>API Response</h2>
+      <pre id="response">{}</pre>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
