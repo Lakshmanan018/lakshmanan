@@ -1,6 +1,7 @@
 tensorflow
-fastapi
-uvicorn
+flask
+flask-cors
+numpy
 pandas
 scikit-learn
 joblib
